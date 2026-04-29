@@ -49,7 +49,7 @@ def initialize_state():
         st.session_state.dest_coord = False
 
 # handle map clicking 
-def handle_click():
+def handle_click(map_data, gdf):
     if (map_data["last_clicked"] and 
         (st.session_state.drop_start or st.session_state.drop_dest)):
         lat = map_data["last_clicked"]["lat"]
@@ -86,14 +86,14 @@ def handle_click():
         drop_and_snap("drop_start", "start_coord")
         drop_and_snap("drop_dest", "dest_coord")
 
-def display_routing_ui():
+def display_routing_ui(locations):
+    mode = st.radio("Point Selection", ["Search", "Map"], on_change=reset_state)
+
     # search routing UI
     if mode == "Search":
         def update_marker_start():
-            print(st.session_state.key_start)        
             st.session_state.start_coord = locations.get(st.session_state.key_start)
         def update_marker_dest():
-            print(st.session_state.key_end)        
             st.session_state.dest_coord = locations.get(st.session_state.key_end)
 
         start_selection = st.selectbox(
@@ -129,7 +129,7 @@ def display_routing_ui():
             st.session_state.dest_coord = None
             st.rerun()
 
-def display_start_end_markers():
+def display_start_end_markers(m, gdf_wgs84):
     # draw a marker if a start or dest was selected
     if st.session_state.start_coord:
         wgs_location = gdf_wgs84.loc[st.session_state.start_coord].geometry
@@ -150,7 +150,7 @@ def display_start_end_markers():
             tooltip="End",
         ).add_to(m)    
 
-def display_path():
+def display_path(G, m, gdf):
     # render path if a start and end have been selected and theyre not the same
     if st.session_state.start_coord and st.session_state.dest_coord and st.session_state.start_coord != st.session_state.dest_coord: 
         # get start and dest
@@ -169,7 +169,7 @@ def display_path():
             color="red", 
         )
 
-def display_searchable_markers():
+def display_searchable_markers(m, gdf_wgs84, locations):
     # add markers for searchable areas
     feature_group = folium.FeatureGroup(name="Notable Areas")
 
@@ -179,7 +179,11 @@ def display_searchable_markers():
 
     feature_group.add_to(m)
 
-def populate_graph():
+def build_graph():
+    df = pd.read_csv('paths.csv')
+    G = nx.Graph()
+    all_points = []
+
     for index, row in df.iterrows():
         all_points.append((row.start_x, row.start_y, row.start_z))
 
@@ -187,6 +191,7 @@ def populate_graph():
         end = (row.end_x, row.end_y, row.end_z)
         
         G.add_edge(start, end, name=row.name, avg_slope=row.slope_avg, length=row.length)
+    return G, all_points
 
 def create_gdfs(all_points):
     # create list of points from all points and turn it into a gdf
@@ -197,42 +202,37 @@ def create_gdfs(all_points):
     gdf_wgs84 = gdf.to_crs(epsg=4326)
     return gdf, gdf_wgs84
 
-# intitalize data and populate graph
-df = pd.read_csv('paths.csv')
-G = nx.Graph()
+def main():
+    # searchable locations
+    locations = {
+        "William G Davis Building": 1, 
+        "Instructional Centre": 10,
+        "Deerfield Hall": 13
+        }
 
-all_points = []
+    # intitalize data and populate graph
+    G, all_points = build_graph()
+    gdf, gdf_wgs84 = create_gdfs(all_points)
+    initialize_state()
 
-# searchable locations
-locations = {
-    "William G Davis Building": 1, 
-    "Instructional Centre": 10,
-    "Deerfield Hall": 13
-    }
+    # render map
+    st.title("UTM Route Mapper")
+    center = [43.5494114, -79.6637835]
 
-populate_graph()
-gdf, gdf_wgs84 = create_gdfs(all_points)
-initialize_state()
+    m = folium.Map(location=center, zoom_start=16)
 
-# render map
-st.title("UTM Route Mapper")
-center = [43.5494114, -79.6637835]
+    display_routing_ui(locations)
+    display_searchable_markers(m, gdf_wgs84, locations)
+    display_start_end_markers(m, gdf_wgs84)
+    display_path(G, m, gdf)
 
-m = folium.Map(location=center, zoom_start=16)
+    # add ability to toggle layers
+    folium.LayerControl().add_to(m)
 
-mode = st.radio("Point Selection", ["Search", "Map"], on_change=reset_state)
+    # display map
+    map_data = st_folium(m, width=700, height=500)
 
-display_routing_ui()
-display_searchable_markers()
-display_start_end_markers()
-display_path()
+    # handle adding start/dest
+    handle_click(map_data, gdf)
 
-# add ability to toggle layers
-folium.LayerControl().add_to(m)
-
-# display map
-map_data = st_folium(m, width=700, height=500)
-
-# handle adding start/dest
-handle_click()
-
+main()
