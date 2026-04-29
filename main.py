@@ -5,34 +5,37 @@ from shapely.geometry import LineString, Point
 import streamlit as st
 from streamlit_folium import st_folium
 import folium
+import constants as c
 
 # TODO: Label all the points that are important in ArcGIS
 # TODO: Add multifloors for IB
 # TODO: USE A DESIGNATED POINTS FILE, show details on points like name
 # TODO: MAKE A CONSTANTS FILE
+# TODO: MAYBE RENDER EACH PART OF THE PATH SEPARETELY TO SHOW DETAILS ON HOVER
+# TODO: UI LOGIC SEPARATION FOR SOME FUNCTIONS
 
 s = st.session_state
 
 # take in a list of points as a path and project them to WGSS84 for rendering
 def get_map_data(path_coords):
     line = LineString(path_coords)
-    gdf = gpd.GeoDataFrame(geometry=[line], crs="EPSG:26917")
-    return gdf.to_crs(epsg=4326)
+    gdf = gpd.GeoDataFrame(geometry=[line], crs=f"EPSG:{c.UTM17}")
+    return gdf.to_crs(epsg=c.WGS)
 
 # custom weighting function for search
 def calculate_weight(start, end, edge_data):
     p = s.preferences
 
-    if edge_data.get("surface") == "unknown": multiplier = 1.1
+    if edge_data.get("surface") == "unknown": multiplier = c.UNKNOWN_MULT
     else: multiplier = s.weighting_map.get(edge_data.get("surface"))
 
     if p["avoid_heavy_slope"]: 
         slope_max = edge_data.get("slope_max")
 
-        if slope_max > 11:
-            multiplier = 100
-        elif slope_max > 5:
-            multiplier *= (slope_max - 5) / 10 + 1
+        if slope_max > c.HEAVY_SLOPE:
+            multiplier = c.HEAVY_SLOPE_MULT
+        elif slope_max > c.MODERATE_SLOPE:
+            multiplier *= (slope_max - c.MODERATE_SLOPE) / 10 + 1
 
     if p["prioritize_easy_path"]:
         multiplier *= edge_data.get('avg_slope') / 100 + 1
@@ -100,9 +103,9 @@ def handle_click(map_data, gdf):
         lng = map_data["last_clicked"]["lng"]
 
         # create a 100m buffer around point
-        point_clicked_wgs = gpd.GeoSeries([Point(lng, lat)], crs="EPSG:4236")
-        point_clicked_utm = point_clicked_wgs.to_crs("EPSG:26917")
-        click_buffered = point_clicked_utm.buffer(100)
+        point_clicked_wgs = gpd.GeoSeries([Point(lng, lat)], crs=f"EPSG:{c.WGS}")
+        point_clicked_utm = point_clicked_wgs.to_crs(f"EPSG:{c.UTM17}")
+        click_buffered = point_clicked_utm.buffer(c.SNAP_BUFFER)
         buffered_gdf = gpd.GeoDataFrame(geometry=click_buffered)
 
         # find points in the buffer
@@ -264,25 +267,26 @@ def display_path(G, m, gdf):
         p = s.preferences
         w = s.weighting_map
 
-        if p["avoid_gravel"] : w["gravel"] = 1.5
-        if p["avoid_asphalt"] : w["asphalt"] = 1.5
-        if p["avoid_dirt"] : w["dirt"] = 1.5
-        if p["avoid_unpaved"]: w["unpaved"] = 1.5
-        if p["avoid_parking"]: w["parking_aisle"] = 1.5
-        if p["avoid_indoors"]: w["indoor"] = 1.25
-        if p["prioritize_paved"]: w["paved"] = 0.75
-        if p["prioritize_ground"]: w["ground"] = 0.75
-        if p["prioritize_indoors"]: w["indoor"] = 0.75
-        if p["prioritize_concrete"]: w["concrete"] = 0.75
-        if p["prioritize_sidewalk"]: w["sidewalk"] = 0.75
-        if p["prioritize_crosswalk"]: w["crossing"] = 0.01
+        if p["avoid_gravel"] : w["gravel"] = c.GRAVEL
+        if p["avoid_asphalt"] : w["asphalt"] = c.ASPHALT
+        if p["avoid_dirt"] : w["dirt"] = c.DIRT
+        if p["avoid_unpaved"]: w["unpaved"] = c.UNPAVED
+        if p["avoid_parking"]: w["parking_aisle"] = c.PARKING
+        if p["avoid_indoors"]: w["indoor"] = c.AVOID_INDOOR
+        if p["prioritize_paved"]: w["paved"] = c.PAVED
+        if p["prioritize_ground"]: w["ground"] = c.GROUND
+        if p["prioritize_indoors"]: w["indoor"] = c.INDOOR
+        if p["prioritize_concrete"]: w["concrete"] = c.CONCRETE
+        if p["prioritize_sidewalk"]: w["sidewalk"] = c.SIDEWALK
+        if p["prioritize_crosswalk"]: w["crossing"] = c.CROSSING
         
         # find shortest path and render it
         shortest_path = nx.shortest_path(G, start_node, end_node, weight=calculate_weight)
         path_gdf = get_map_data(shortest_path)
         path_gdf.explore(
             m=m,
-            color="red", 
+            color="red",
+            name="Best Path" 
         )
 
 def display_searchable_markers(m, gdf_wgs84, locations):
@@ -296,7 +300,7 @@ def display_searchable_markers(m, gdf_wgs84, locations):
     feature_group.add_to(m)
 
 def build_graph():
-    df = pd.read_csv('paths.csv')
+    df = pd.read_csv(c.PATHS)
     G = nx.Graph()
     all_points = []
 
@@ -312,10 +316,10 @@ def build_graph():
 def create_gdfs(all_points):
     # create list of points from all points and turn it into a gdf
     geometry = [Point(xyz) for xyz in all_points]
-    gdf = gpd.GeoDataFrame(geometry=geometry, crs="EPSG:26917")
+    gdf = gpd.GeoDataFrame(geometry=geometry, crs=f"EPSG:{c.UTM17}")
 
     # make a copy with WGS84 coords
-    gdf_wgs84 = gdf.to_crs(epsg=4326)
+    gdf_wgs84 = gdf.to_crs(epsg=c.WGS)
     return gdf, gdf_wgs84
 
 @st.cache_data
@@ -325,13 +329,6 @@ def get_processed_data():
     return G, gdf, gdf_wgs84
 
 def main():
-    # searchable locations
-    locations = {
-        "William G Davis Building": 1, 
-        "Instructional Centre": 10,
-        "Deerfield Hall": 13
-        }
-
     initialize_state()
 
     # intitalize data and populate graph
@@ -339,17 +336,16 @@ def main():
     
     # render map
     st.title("UTM Route Mapper")
-    center = [43.5494114, -79.6637835]
 
-    m = folium.Map(location=center, zoom_start=16)
+    m = folium.Map(location=c.MAP_CENTER, zoom_start=c.ZOOM_START)
 
     if s.recalculate:
         s.recalculate = False
         st.toast("Settings applied!")
 
-    display_routing_ui(locations)
+    display_routing_ui(c.LOCATIONS)
     display_additional_options_ui()
-    display_searchable_markers(m, gdf_wgs84, locations)
+    display_searchable_markers(m, gdf_wgs84, c.LOCATIONS)
     display_start_end_markers(m, gdf_wgs84)
     display_path(G, m, gdf)
 
@@ -357,7 +353,7 @@ def main():
     folium.LayerControl().add_to(m)
 
     # display map
-    map_data = st_folium(m, width=700, height=500)
+    map_data = st_folium(m, width=c.WIDTH, height=c.HEIGHT)
 
     # handle adding start/dest
     handle_click(map_data, gdf)
