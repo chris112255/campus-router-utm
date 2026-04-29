@@ -11,6 +11,8 @@ import folium
 # TODO: USE A DESIGNATED POINTS FILE, show details on points like name
 # TODO: MAKE A CONSTANTS FILE
 
+s = st.session_state
+
 # take in a list of points as a path and project them to WGSS84 for rendering
 def get_map_data(path_coords):
     line = LineString(path_coords)
@@ -19,33 +21,18 @@ def get_map_data(path_coords):
 
 # custom weighting function for search
 def calculate_weight(start, end, edge_data):
-    # TODO: add a penalties map during before calling this and saving it into state to use here
+    p = s.preferences
 
-    multiplier = 1
-    p = st.session_state.preferences
-    e = edge_data
+    if edge_data.get("surface") == "unknown": multiplier = 1.1
+    else: multiplier = s.weighting_map.get(edge_data.get("surface"))
 
     if p["avoid_heavy_slope"]: 
-        # if slope_max > 12:
-        #     multiplier *= 100
-        # elif slope_max > 5:
-        #     multiplier *= (slope_max - 5) / 10 + 1
-        pass
+        slope_max = edge_data.get("slope_max")
 
-    if p["avoid_gravel"] or p["avoid_asphalt"] or p["avoid_dirt"] or p["avoid_unpaved"]:
-        multiplier *= 1.5
-
-    if p["avoid_parking"]:
-        multiplier *= 1.5
-
-    if p["avoid_indoors"]:
-        multiplier *= 1.25
-
-    if p["prioritize_paved"] or p["prioritize_ground"] or p["prioritize_indoors"] or p["prioritize_concrete"] or p["prioritize_sidewalk"]:
-        multiplier *= 0.75
-
-    if p["prioritize_crosswalk"]:
-        multiplier = 0.01
+        if slope_max > 11:
+            multiplier = 100
+        elif slope_max > 5:
+            multiplier *= (slope_max - 5) / 10 + 1
 
     if p["prioritize_easy_path"]:
         multiplier *= edge_data.get('avg_slope') / 100 + 1
@@ -55,31 +42,40 @@ def calculate_weight(start, end, edge_data):
 
 # reset state on routing mode change
 def reset_state():
-    st.session_state.drop_start = False
-    st.session_state.drop_dest = False
-    st.session_state.start_coord = False
-    st.session_state.dest_coord = False
+    s.drop_start = False
+    s.drop_dest = False
+    s.start_coord = False
+    s.dest_coord = False
 
 # intialize state
 def initialize_state():
-    if "graph" not in st.session_state:
-        st.session_state.graph = None
-    if "gdf" not in st.session_state:
-        st.session_state.gdf = None
-    if "gdf_wgs84" not in st.session_state:
-        st.session_state.gdf_wgs84 = None
-    if "drop_start" not in st.session_state:
-        st.session_state.drop_start = False
-    if "drop_dest" not in st.session_state:
-        st.session_state.drop_dest = False
-    if "start_coord" not in st.session_state:
-        st.session_state.start_coord = False
-    if "dest_coord" not in st.session_state:
-        st.session_state.dest_coord = False
-    if "recalculate" not in st.session_state:
-        st.session_state.recalculate = False    
-    if "routing_preferences" not in st.session_state:
-        st.session_state.preferences = {   
+    if "drop_start" not in s:
+        s.drop_start = False
+    if "drop_dest" not in s:
+        s.drop_dest = False
+    if "start_coord" not in s:
+        s.start_coord = False
+    if "dest_coord" not in s:
+        s.dest_coord = False
+    if "recalculate" not in s:
+        s.recalculate = False    
+    if "weighting_map" not in s:
+        s.weighting_map = {
+            "gravel": 1,
+            "asphalt": 1,
+            "dirt": 1,
+            "unpaved": 1,
+            "parking_aisle": 1,
+            "indoor": 1,
+            "paved": 1,
+            "ground": 1,
+            "indoor": 1,
+            "concrete": 1,
+            "sidewalk": 1,
+            "crossing": 1
+        }    
+    if "preferences" not in s:
+        s.preferences = {   
             "avoid_heavy_slope": False,
             "avoid_gravel": False,
             "avoid_asphalt": False,
@@ -99,7 +95,7 @@ def initialize_state():
 # handle map clicking 
 def handle_click(map_data, gdf):
     if (map_data["last_clicked"] and 
-        (st.session_state.drop_start or st.session_state.drop_dest)):
+        (s.drop_start or s.drop_dest)):
         lat = map_data["last_clicked"]["lat"]
         lng = map_data["last_clicked"]["lng"]
 
@@ -113,19 +109,19 @@ def handle_click(map_data, gdf):
         nearby_points = gpd.sjoin(gdf, buffered_gdf, how="inner", predicate="intersects")
 
         if map_data and map_data.get("bounds"):
-            st.session_state.map_bounds = map_data["bounds"]
-            st.session_state.map_zoom = map_data["zoom"]
+            s.map_bounds = map_data["bounds"]
+            s.map_zoom = map_data["zoom"]
 
         # find the nearest point and snap to it
         def drop_and_snap(trigger_key, coord_key):
-            if st.session_state[trigger_key]:
-                st.session_state[trigger_key] = False
+            if s[trigger_key]:
+                s[trigger_key] = False
 
                 if not nearby_points.empty:
                     distances = nearby_points.geometry.distance(point_clicked_utm.iloc[0])
                     nearest_idx = distances.idxmin()
                     
-                    st.session_state[coord_key] = nearest_idx
+                    s[coord_key] = nearest_idx
                     st.rerun()
                 else:
                     st.toast("Point out of range", icon="❌")
@@ -140,9 +136,9 @@ def display_routing_ui(locations):
     # search routing UI
     if mode == "Search":            
         def update_marker_start():
-            st.session_state.start_coord = locations.get(st.session_state.key_start)
+            s.start_coord = locations.get(s.key_start)
         def update_marker_dest():
-            st.session_state.dest_coord = locations.get(st.session_state.key_end)
+            s.dest_coord = locations.get(s.key_end)
 
         col1, col2 = st.columns(2)
         with col1:
@@ -170,16 +166,16 @@ def display_routing_ui(locations):
         with col1:
             drop_start = st.button("Pick Start")
             if drop_start:
-                st.session_state.drop_start = True
-                st.session_state.drop_dest = False
-                st.session_state.start_coord = None
+                s.drop_start = True
+                s.drop_dest = False
+                s.start_coord = None
                 st.rerun()
         with col2:
             drop_dest = st.button("Pick End")
             if drop_dest:
-                st.session_state.drop_dest = True
-                st.session_state.drop_start = False    
-                st.session_state.dest_coord = None
+                s.drop_dest = True
+                s.drop_start = False    
+                s.dest_coord = None
                 st.rerun()
 
 def display_additional_options_ui():
@@ -213,7 +209,6 @@ def display_additional_options_ui():
             st.checkbox("Crosswalks", key="crosswalk")
 
         if st.button("Apply Advanced Settings"):
-            s = st.session_state
             p = s.preferences
             
             p["avoid_gravel"] = s.gravel
@@ -232,13 +227,13 @@ def display_additional_options_ui():
             p["prioritize_crosswalk"] = s.crosswalk
             p["prioritize_easy_path"] = s.easy_path
 
-            st.session_state.recalculate = True
+            s.recalculate = True
             st.rerun()
 
 def display_start_end_markers(m, gdf_wgs84):
     # draw a marker if a start or dest was selected
-    if st.session_state.start_coord:
-        wgs_location = gdf_wgs84.loc[st.session_state.start_coord].geometry
+    if s.start_coord:
+        wgs_location = gdf_wgs84.loc[s.start_coord].geometry
 
         startMarker = folium.Marker(
             location=[wgs_location.y, wgs_location.x],
@@ -246,9 +241,8 @@ def display_start_end_markers(m, gdf_wgs84):
             tooltip="Start",
         ).add_to(m)    
 
-    if st.session_state.dest_coord:
-        print("draw dest")
-        wgs_location = gdf_wgs84.loc[st.session_state.dest_coord].geometry
+    if s.dest_coord:
+        wgs_location = gdf_wgs84.loc[s.dest_coord].geometry
 
         endMarker = folium.Marker(
             location=[wgs_location.y, wgs_location.x],
@@ -258,15 +252,31 @@ def display_start_end_markers(m, gdf_wgs84):
 
 def display_path(G, m, gdf):
     # render path if a start and end have been selected and theyre not the same
-    if st.session_state.start_coord and st.session_state.dest_coord and st.session_state.start_coord != st.session_state.dest_coord: 
+    if s.start_coord and s.dest_coord and s.start_coord != s.dest_coord: 
         # get start and dest
-        if st.session_state.start_coord:
-            utm_location = gdf.loc[st.session_state.start_coord].geometry
+        if s.start_coord:
+            utm_location = gdf.loc[s.start_coord].geometry
             start_node=(utm_location.x, utm_location.y, utm_location.z)
-        if st.session_state.dest_coord:
-            utm_location = gdf.loc[st.session_state.dest_coord].geometry
+        if s.dest_coord:
+            utm_location = gdf.loc[s.dest_coord].geometry
             end_node=(utm_location.x, utm_location.y, utm_location.z)
 
+        p = s.preferences
+        w = s.weighting_map
+
+        if p["avoid_gravel"] : w["gravel"] = 1.5
+        if p["avoid_asphalt"] : w["asphalt"] = 1.5
+        if p["avoid_dirt"] : w["dirt"] = 1.5
+        if p["avoid_unpaved"]: w["unpaved"] = 1.5
+        if p["avoid_parking"]: w["parking_aisle"] = 1.5
+        if p["avoid_indoors"]: w["indoor"] = 1.25
+        if p["prioritize_paved"]: w["paved"] = 0.75
+        if p["prioritize_ground"]: w["ground"] = 0.75
+        if p["prioritize_indoors"]: w["indoor"] = 0.75
+        if p["prioritize_concrete"]: w["concrete"] = 0.75
+        if p["prioritize_sidewalk"]: w["sidewalk"] = 0.75
+        if p["prioritize_crosswalk"]: w["crossing"] = 0.01
+        
         # find shortest path and render it
         shortest_path = nx.shortest_path(G, start_node, end_node, weight=calculate_weight)
         path_gdf = get_map_data(shortest_path)
@@ -296,7 +306,7 @@ def build_graph():
         start = (row.start_x, row.start_y, row.start_z)
         end = (row.end_x, row.end_y, row.end_z)
         
-        G.add_edge(start, end, name=row.name, avg_slope=row.slope_avg, length=row.length)
+        G.add_edge(start, end, name=row.name, avg_slope=row.slope_avg, slope_max=row.slope_max, surface=row.surface, length=row.length)
     return G, all_points
 
 def create_gdfs(all_points):
@@ -333,8 +343,8 @@ def main():
 
     m = folium.Map(location=center, zoom_start=16)
 
-    if st.session_state.recalculate:
-        st.session_state.recalculate = False
+    if s.recalculate:
+        s.recalculate = False
         st.toast("Settings applied!")
 
     display_routing_ui(locations)
