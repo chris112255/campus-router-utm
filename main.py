@@ -18,6 +18,15 @@ def get_map_data(path_coords):
 
 # custom weighting function for search
 def calculate_weight(start, end, edge_data):
+    # TODO: add ui for selecting elevation weighting and terrain type etc
+    # slope_max	
+    # name	
+    # surface	
+    # indoor	
+    # parking	
+    # sidewalk	
+    # crossing_s
+
     weighted_total = edge_data.get('length') * (1 + edge_data.get('avg_slope')/100)
     return weighted_total
 
@@ -54,6 +63,10 @@ def handle_click():
 
         # find points in the buffer
         nearby_points = gpd.sjoin(gdf, buffered_gdf, how="inner", predicate="intersects")
+
+        if map_data and map_data.get("bounds"):
+            st.session_state.map_bounds = map_data["bounds"]
+            st.session_state.map_zoom = map_data["zoom"]
 
         # find the nearest point and snap to it
         def drop_and_snap(trigger_key, coord_key):
@@ -175,7 +188,7 @@ def populate_graph():
         
         G.add_edge(start, end, name=row.name, avg_slope=row.slope_avg, length=row.length)
 
-def create_gdfs():
+def create_gdfs(all_points):
     # create list of points from all points and turn it into a gdf
     geometry = [Point(xyz) for xyz in all_points]
     gdf = gpd.GeoDataFrame(geometry=geometry, crs="EPSG:26917")
@@ -198,19 +211,17 @@ locations = {
     }
 
 populate_graph()
-gdf, gdf_wgs84 = create_gdfs()
+gdf, gdf_wgs84 = create_gdfs(all_points)
 initialize_state()
 
 # render map
 st.title("UTM Route Mapper")
 center = [43.5494114, -79.6637835]
 
-# TODO: MAYBE KEEP ZOOM IN AFTER PLACING
-m = folium.Map(center, zoom_start=16)
+m = folium.Map(location=center, zoom_start=16)
 
 mode = st.radio("Point Selection", ["Search", "Map"], on_change=reset_state)
 
-# TODO: add ui for selecting elevation weighting and terrain type etc
 display_routing_ui()
 display_searchable_markers()
 display_start_end_markers()
@@ -221,4 +232,7 @@ folium.LayerControl().add_to(m)
 
 # display map
 map_data = st_folium(m, width=700, height=500)
+
+# handle adding start/dest
 handle_click()
+
