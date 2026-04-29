@@ -10,16 +10,29 @@ import constants as c
 # TODO: Label all the points that are important in ArcGIS
 # TODO: Add multifloors for IB
 # TODO: USE A DESIGNATED POINTS FILE, show details on points like name
-# TODO: MAKE A CONSTANTS FILE
-# TODO: MAYBE RENDER EACH PART OF THE PATH SEPARETELY TO SHOW DETAILS ON HOVER
-# TODO: UI LOGIC SEPARATION FOR SOME FUNCTIONS
 
 s = st.session_state
 
 # take in a list of points as a path and project them to WGSS84 for rendering
-def get_map_data(path_coords):
-    line = LineString(path_coords)
-    gdf = gpd.GeoDataFrame(geometry=[line], crs=f"EPSG:{c.UTM17}")
+def get_map_data(G, path_nodes):
+    segments = []
+    
+    # Loop through the path nodes in pairs: (1st, 2nd), (2nd, 3rd), etc.
+    for i in range(len(path_nodes) - 1):
+        u = path_nodes[i]
+        v = path_nodes[i+1]
+        
+        edge_data = G.get_edge_data(u, v)
+        
+        segments.append({
+            'geometry': LineString([[u[0], u[1]], [v[0], v[1]]]),
+            'surface': edge_data.get('surface'),
+            "name": edge_data.get("name"),
+            "slope": edge_data.get("avg_slope"),
+            "colour": c.SURFACE_COLOURS.get(edge_data.get('surface'), "#000000")
+        })
+    
+    gdf = gpd.GeoDataFrame(segments, crs=f"EPSG:{c.UTM17}")
     return gdf.to_crs(epsg=c.WGS)
 
 # custom weighting function for search
@@ -253,7 +266,7 @@ def display_start_end_markers(m, gdf_wgs84):
             tooltip="End",
         ).add_to(m)    
 
-def display_path(G, m, gdf):
+def calculate_best_path(G, gdf):
     # render path if a start and end have been selected and theyre not the same
     if s.start_coord and s.dest_coord and s.start_coord != s.dest_coord: 
         # get start and dest
@@ -282,12 +295,19 @@ def display_path(G, m, gdf):
         
         # find shortest path and render it
         shortest_path = nx.shortest_path(G, start_node, end_node, weight=calculate_weight)
-        path_gdf = get_map_data(shortest_path)
-        path_gdf.explore(
-            m=m,
-            color="red",
-            name="Best Path" 
-        )
+        return shortest_path
+    return None
+
+def display_path(G, path, m):
+    path_gdf = get_map_data(G, path)
+    path_gdf.explore(
+        m=m,
+        tooltip=["name", "surface", "slope"],
+        highlight=True,
+        color=path_gdf["colour"],
+        name="Best Path",
+        style_kwds={'weight': c.PATH_WEIGHT}
+    )
 
 def display_searchable_markers(m, gdf_wgs84, locations):
     # add markers for searchable areas
@@ -347,7 +367,9 @@ def main():
     display_additional_options_ui()
     display_searchable_markers(m, gdf_wgs84, c.LOCATIONS)
     display_start_end_markers(m, gdf_wgs84)
-    display_path(G, m, gdf)
+    path = calculate_best_path(G, gdf)
+    if path:
+        display_path(G, path, m)
 
     # add ability to toggle layers
     folium.LayerControl().add_to(m)

@@ -1,4 +1,4 @@
-﻿OBJECTID *,z_min,z_max,z_avg,length,slope_min,slope_max,slope_avg,name,surface,indoor,start_x,start_y,start_z,end_x,end_y,end_z
+﻿OBJECTID *,z_min,z_max,z_avg,length,slope_min,slope_max,slope_avg,edge_name,surface,indoor,start_x,start_y,start_z,end_x,end_y,end_z
 1,126.98073,126.989583,126.983236,8.6378,0.001864,0.221403,0.118987,Outer Circle,asphalt, ,607756.1358,4822415.932,126.9822,607762.8276,4822421.393,126.9896
 2,126.989583,126.997155,126.994579,10.000012,0.005799,0.278539,0.142998,Outer Circle,asphalt, ,607762.8276,4822421.393,126.9896,607770.8949,4822427.303,126.9904
 3,126.963592,126.990428,126.978635,5.107279,0.36167,0.6822,0.52544,Outer Circle,asphalt, ,607770.8949,4822427.303,126.9904,607775.015,4822430.321,126.9636

@@ -41,3 +41,19 @@ MAP_CENTER = [43.5494114, -79.6637835]
 ZOOM_START = 16
 WIDTH = 700
 HEIGHT = 500
+PATH_WEIGHT = 7
+
+SURFACE_COLOURS = {
+    "crossing": "#00FFFF",
+    "sidewalk": "#228B22",
+    "concrete": "#FF8C00",
+    "paved": "#4682B4",
+    "indoor": "#DAA520",
+    "ground": "#FFD700",
+    "asphalt": "#2F4F4F",
+    "gravel": "#A52A2A",
+    "dirt": "#8B4513",
+    "unpaved": "#D2691E",
+    "parking": "#800080",
+    "unknown": "#FF0000" # Use Bright Red for your empty Excel cells!
+}
