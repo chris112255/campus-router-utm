@@ -6,17 +6,19 @@ import streamlit as st
 from streamlit_folium import st_folium
 import folium
 import constants as c
+from typing import List, Any, Tuple, Dict, Optional
 
 s = st.session_state
 
-def set_content_size(width):
+# change page size and heading style
+def set_content_size() -> None:
     st.markdown(
         """
         <style>
         .stMainBlockContainer {
-            max-width: 100%;
-            width:""" + str(width) + """% !important;
-            min-width: 640px;
+            max-width: """ + c.MAX_WIDTH + """;
+            width:""" + c.PAGE_WIDTH + """!important;
+            min-width: """ + c.MIN_WIDTH + """;
         }
         .stMainBlockContainer h1 {margin: 0; padding: 0}
         </style>
@@ -25,10 +27,10 @@ def set_content_size(width):
     )
 
 # take in a list of points as a path and project them to WGSS84 for rendering
-def get_map_data(G, path_nodes):
+def get_map_data(G: nx.Graph, path_nodes: List[Any]) -> gpd.GeoDataFrame:
     segments = []
     
-    # Loop through the path nodes in pairs: (1st, 2nd), (2nd, 3rd), etc.
+    # loop through start and end labelling each
     for i in range(len(path_nodes) - 1):
         u = path_nodes[i]
         v = path_nodes[i+1]
@@ -48,7 +50,7 @@ def get_map_data(G, path_nodes):
     return gdf.to_crs(epsg=c.WGS)
 
 # custom weighting function for search
-def calculate_weight(start, end, edge_data):
+def calculate_weight(_start: Tuple[float, float, float], _end: Tuple[float, float, float], edge_data: Dict[str, Any]) -> float:
     p = s.preferences
 
     if edge_data.get("surface") == "unknown": multiplier = c.UNKNOWN_MULT
@@ -69,14 +71,14 @@ def calculate_weight(start, end, edge_data):
     return weighted_total
 
 # reset state on routing mode change
-def reset_state():
+def reset_state() -> None:
     s.drop_start = False
     s.drop_dest = False
     s.start_coord = False
     s.dest_coord = False
 
 # intialize state
-def initialize_state():
+def initialize_state() -> None:
     if "drop_start" not in s:
         s.drop_start = False
     if "drop_dest" not in s:
@@ -121,7 +123,7 @@ def initialize_state():
         }
 
 # handle map clicking 
-def handle_click(map_data, gdf):
+def handle_click(map_data: Dict[str, Any], gdf: gpd.GeoDataFrame) -> None:
     if (map_data["last_clicked"] and 
         (s.drop_start or s.drop_dest)):
         lat = map_data["last_clicked"]["lat"]
@@ -141,7 +143,7 @@ def handle_click(map_data, gdf):
             s.map_zoom = map_data["zoom"]
 
         # find the nearest point and snap to it
-        def drop_and_snap(trigger_key, coord_key):
+        def drop_and_snap(trigger_key: str, coord_key: str) -> None:
             if s[trigger_key]:
                 s[trigger_key] = False
 
@@ -158,7 +160,7 @@ def handle_click(map_data, gdf):
         drop_and_snap("drop_start", "start_coord")
         drop_and_snap("drop_dest", "dest_coord")
 
-def display_routing_ui(locations):
+def display_routing_ui(locations: Dict[str, Dict[str, Any]]) -> None:
     mode = st.radio("Point Selection", ["Search", "Map"], on_change=reset_state)
 
     # search routing UI
@@ -205,7 +207,7 @@ def display_routing_ui(locations):
                 s.dest_coord = None
                 st.rerun()
 
-def display_additional_options_ui():
+def display_additional_options_ui() -> None:
     with st.expander("Show Routing Preferences", expanded=False):
         st.write("Avoid: ")
         col1, col2, col3 = st.columns(3)
@@ -255,10 +257,9 @@ def display_additional_options_ui():
             s.recalculate = True
             st.rerun()
 
-def display_start_end_markers(m, gdf_wgs84):
-    # should use an index for this instead ideally
-    
+def display_start_end_markers(m: folium.Map, gdf_wgs84: gpd.GeoDataFrame) -> None:
     # draw a marker if a start or dest was selected
+    # should use an index for this instead ideally instead of saving a coord
     if s.start_coord:
         wgs_location = gdf_wgs84.loc[s.start_coord].geometry
 
@@ -277,7 +278,7 @@ def display_start_end_markers(m, gdf_wgs84):
             tooltip="End",
         ).add_to(m)    
 
-def calculate_best_path(G, gdf):    
+def calculate_best_path(G: nx.Graph, gdf: gpd.GeoDataFrame) -> Optional[List[Any]]:    
     # render path if a start and end have been selected and theyre not the same
     if s.start_coord and s.dest_coord and s.start_coord != s.dest_coord: 
         # get start and dest
@@ -304,17 +305,18 @@ def calculate_best_path(G, gdf):
         if p["prioritize_sidewalk"]: w["sidewalk"] = c.SIDEWALK
         if p["prioritize_crosswalk"]: w["crossing"] = c.CROSSING
         
-        # find shortest path and render it
         shortest_path = nx.shortest_path(G, start_node, end_node, weight=calculate_weight)
         return shortest_path
     return None
 
-def display_path(G, path, m):
+# render path
+def display_path(G: nx.Graph, path: List[Any], m: folium.Map) -> None:
     path_gdf = get_map_data(G, path)
 
     unique_floors = path_gdf['floor'].unique()
     unique_floors.sort()
 
+    # render different floors separately
     for floor in unique_floors:
         fg = folium.FeatureGroup(name=f"Floor {floor}", show=True)
         
@@ -328,7 +330,7 @@ def display_path(G, path, m):
         )
         fg.add_to(m)
 
-def display_searchable_markers(m, gdf_wgs84, locations):
+def display_searchable_markers(m: folium.Map, gdf_wgs84: gpd.GeoDataFrame, locations: Dict[str, Dict[str, Any]]) -> None:
     # add markers for searchable areas
     feature_group = folium.FeatureGroup(name="Notable Areas")
 
@@ -347,7 +349,7 @@ def display_searchable_markers(m, gdf_wgs84, locations):
 
     feature_group.add_to(m)
 
-def build_graph():
+def build_graph() -> None:
     df = pd.read_csv(c.PATHS)
     G = nx.Graph()
 
@@ -358,7 +360,7 @@ def build_graph():
         G.add_edge(start, end, name=row.edge_name, floor=row.floor, avg_slope=row.slope_avg, slope_max=row.slope_max, surface=row.surface, length=row.length)
     return G
 
-def create_gdfs():
+def create_gdfs() -> None:
     all_points = pd.read_csv(c.POINTS)
 
     # create list of points from all points and turn it into a gdf
@@ -372,14 +374,15 @@ def create_gdfs():
     gdf_wgs84 = gdf.to_crs(epsg=c.WGS)
     return gdf, gdf_wgs84
 
+# cache the graph and points gdfs
 @st.cache_data
-def get_processed_data():
+def get_processed_data() -> None:
     G = build_graph()
     gdf, gdf_wgs84 = create_gdfs()
     return G, gdf, gdf_wgs84
 
 def main():
-    set_content_size(80)
+    set_content_size()
     initialize_state()
 
     # intitalize data and populate graph
@@ -403,16 +406,15 @@ def main():
     path = calculate_best_path(G, gdf)
     if path:
         display_path(G, path, m)
+
     # add ability to toggle layers
     folium.LayerControl().add_to(m)
 
-
     with col2:
-    # display map
         map_data = st_folium(m, width=c.WIDTH)
-
 
     # handle adding start/dest
     handle_click(map_data, gdf)
 
-main()
+if __name__ == "__main__":
+    main()

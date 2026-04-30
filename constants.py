@@ -1,3 +1,5 @@
+import os
+
 # coordinate systems
 UTM17 = "26917"
 WGS = "4326"
@@ -26,14 +28,14 @@ CROSSING = 0.01
 SNAP_BUFFER = 100
 
 # files
-PATHS = "paths.csv"
-POINTS = "points.csv"
+PATHS = os.path.join("data", "paths.csv")
+POINTS = os.path.join("data", "points.csv")
 
 # searchable locations
 LOCATIONS = {
     "William G Davis Building": {"index": 7136, "importance": "high"},
     "Instructional Centre": {"index": 6585, "importance": "high"},
-    "Maangiwe Nendowamin": {"index": 6845, "importance": "high"},
+    "Maanjiwe Nendamowinan": {"index": 6845, "importance": "high"},
     "Culture, Communications & Technology Building": {"index": 6543, "importance": "high"},
     "Putnam Residence": {"index": 311, "importance": "low"},
     "McGrath Valley Residence": {"index": 539, "importance": "low"},
@@ -67,6 +69,11 @@ LOCATIONS = {
     "Science Building": {"index": 6523, "importance": "high"},
     "Library Floor 2": {"index": 7717, "importance": "low"}
 }
+
+# page styles
+MAX_WIDTH = "100%"
+MIN_WIDTH = "640px"
+PAGE_WIDTH = "80%"
 
 # map settings
 MAP_CENTER = [43.5494114, -79.6637835]
