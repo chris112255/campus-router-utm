@@ -16,8 +16,9 @@ def set_content_size(width):
         .stMainBlockContainer {
             max-width: 100%;
             width:""" + str(width) + """% !important;
-            min-width: 700px;
+            min-width: 640px;
         }
+        .stMainBlockContainer h1 {margin: 0; padding: 0}
         </style>
         """,
         unsafe_allow_html=True,
@@ -207,28 +208,30 @@ def display_routing_ui(locations):
 def display_additional_options_ui():
     with st.expander("Show Routing Preferences", expanded=False):
         st.write("Avoid: ")
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
             st.checkbox("Gravel", key="gravel")
             st.checkbox("Asphalt", key="asphalt")
             st.checkbox("Dirt", key="dirt")
-            st.checkbox("Heavy Slopes", key="heavy_slope")
         with col2:
             st.checkbox("Unpaved", key="unpaved")
             st.checkbox("Indoors", key="avoid_indoors")
+        with col3:
+            st.checkbox("Heavy Slopes", key="heavy_slope")
             st.checkbox("Parking", key="parking")
 
         st.write("Prioritize: ")
-        col3, col4 = st.columns(2)
-        with col3:
+        col1, col2, col3 = st.columns(3)
+        with col1:
             st.checkbox("Easy Paths", key="easy_path")
             st.checkbox("Indoors", key="prio_indoors")
             st.checkbox("Crosswalks", key="crosswalk")
-            st.checkbox("Paved", key="paved")
-        with col4:
+        with col2:
             st.checkbox("Ground", key="ground")
             st.checkbox("Sidewalks", key="sidewalk")
+        with col3:
             st.checkbox("Concrete", key="concrete")
+            st.checkbox("Paved", key="paved")
 
         if st.button("Apply Advanced Settings"):
             p = s.preferences
@@ -376,7 +379,7 @@ def get_processed_data():
     return G, gdf, gdf_wgs84
 
 def main():
-    set_content_size(75)
+    set_content_size(80)
     initialize_state()
 
     # intitalize data and populate graph
