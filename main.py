@@ -7,9 +7,8 @@ from streamlit_folium import st_folium
 import folium
 import constants as c
 
-# TODO: Label all the points that are important in ArcGIS
 # TODO: Add multifloors for IB
-# TODO: USE A DESIGNATED POINTS FILE, show details on points like name
+# TODO: USE DESIGNATED POINTS FILE INSTEAD
 
 s = st.session_state
 
@@ -314,8 +313,10 @@ def display_searchable_markers(m, gdf_wgs84, locations):
     feature_group = folium.FeatureGroup(name="Notable Areas")
 
     for value in locations.values():
-        point = gdf_wgs84.geometry.get(value)
-        folium.Marker([point.y, point.x], popup=f"X: {point.x}", icon=folium.Icon(color="blue", icon="info-sign")).add_to(feature_group)
+        # TODO: REMOVE THIS FOR LATER
+        if(value < 4000):
+            point = gdf_wgs84.geometry.get(value)
+            folium.Marker([point.y, point.x], popup=f"X: {point.x}", icon=folium.Icon(color="blue", icon="info-sign")).add_to(feature_group)
 
     feature_group.add_to(m)
 
@@ -330,7 +331,7 @@ def build_graph():
         start = (row.start_x, row.start_y, row.start_z)
         end = (row.end_x, row.end_y, row.end_z)
         
-        G.add_edge(start, end, name=row.name, avg_slope=row.slope_avg, slope_max=row.slope_max, surface=row.surface, length=row.length)
+        G.add_edge(start, end, name=row.edge_name, avg_slope=row.slope_avg, slope_max=row.slope_max, surface=row.surface, length=row.length)
     return G, all_points
 
 def create_gdfs(all_points):
