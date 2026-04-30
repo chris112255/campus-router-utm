@@ -8,7 +8,7 @@ import folium
 import constants as c
 
 # TODO: Add multifloors for IB
-# TODO: USE DESIGNATED POINTS FILE INSTEAD
+# TODO: ADD ACTUAL SCIENCE BUILDING
 
 s = st.session_state
 
@@ -151,9 +151,10 @@ def display_routing_ui(locations):
     # search routing UI
     if mode == "Search":            
         def update_marker_start():
-            s.start_coord = locations.get(s.key_start)
+            st.write(locations.get(s.key_start).get("index"))
+            s.start_coord = locations.get(s.key_start).get("index")
         def update_marker_dest():
-            s.dest_coord = locations.get(s.key_end)
+            s.dest_coord = locations.get(s.key_end).get("index")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -246,6 +247,8 @@ def display_additional_options_ui():
             st.rerun()
 
 def display_start_end_markers(m, gdf_wgs84):
+    # should use an index for this instead ideally
+    
     # draw a marker if a start or dest was selected
     if s.start_coord:
         wgs_location = gdf_wgs84.loc[s.start_coord].geometry
@@ -312,21 +315,30 @@ def display_searchable_markers(m, gdf_wgs84, locations):
     # add markers for searchable areas
     feature_group = folium.FeatureGroup(name="Notable Areas")
 
-    for value in locations.values():
-        # TODO: REMOVE THIS FOR LATER
-        if(value < 4000):
-            point = gdf_wgs84.geometry.get(value)
-            folium.Marker([point.y, point.x], popup=f"X: {point.x}", icon=folium.Icon(color="blue", icon="info-sign")).add_to(feature_group)
+    for v in locations.values():
+        value = v.get("index")
+        color = "blue"
+
+        if v.get("importance") == "high":
+            color = "orange"
+        row = gdf_wgs84.loc[value]
+
+        point = row.geometry
+        name = row["name"]
+
+        folium.Marker([point.y, point.x], popup=name, icon=folium.Icon(color=color, icon="info-sign")).add_to(feature_group)
 
     feature_group.add_to(m)
 
 def build_graph():
     df = pd.read_csv(c.PATHS)
+    points = pd.read_csv(c.POINTS)
+
     G = nx.Graph()
-    all_points = []
+    all_points = points
 
     for index, row in df.iterrows():
-        all_points.append((row.start_x, row.start_y, row.start_z))
+        #all_points.append((row.start_x, row.start_y, row.start_z))
 
         start = (row.start_x, row.start_y, row.start_z)
         end = (row.end_x, row.end_y, row.end_z)
@@ -336,8 +348,11 @@ def build_graph():
 
 def create_gdfs(all_points):
     # create list of points from all points and turn it into a gdf
-    geometry = [Point(xyz) for xyz in all_points]
-    gdf = gpd.GeoDataFrame(geometry=geometry, crs=f"EPSG:{c.UTM17}")
+    gdf = gpd.GeoDataFrame(
+        all_points[["name"]], 
+        geometry=gpd.points_from_xy(all_points["x"], all_points["y"], all_points["z"]), 
+        crs=f"EPSG:{c.UTM17}"
+    )
 
     # make a copy with WGS84 coords
     gdf_wgs84 = gdf.to_crs(epsg=c.WGS)
