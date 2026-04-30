@@ -7,10 +7,21 @@ from streamlit_folium import st_folium
 import folium
 import constants as c
 
-# TODO: Fix indoor edges marked as sidewalk
-# TODO: FIX NONE ON DEST/START
-
 s = st.session_state
+
+def set_content_size(width):
+    st.markdown(
+        """
+        <style>
+        .stMainBlockContainer {
+            max-width: 100%;
+            width:""" + str(width) + """% !important;
+            min-width: 700px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 # take in a list of points as a path and project them to WGSS84 for rendering
 def get_map_data(G, path_nodes):
@@ -152,30 +163,28 @@ def display_routing_ui(locations):
     # search routing UI
     if mode == "Search":            
         def update_marker_start():
-            st.write(locations.get(s.key_start).get("index"))
-            s.start_coord = locations.get(s.key_start).get("index")
+            if locations.get(s.key_start):
+                s.start_coord = locations.get(s.key_start).get("index")
         def update_marker_dest():
-            s.dest_coord = locations.get(s.key_end).get("index")
+            if locations.get(s.key_end):
+                s.dest_coord = locations.get(s.key_end).get("index")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            start_selection = st.selectbox(
-                "Choose Start:", 
-                options=locations.keys(),
-                placeholder="Start typing to search...",
-                index=None,
-                key="key_start",
-                on_change=update_marker_start
-            )
-        with col2:
-            end_selection = st.selectbox(
-                "Choose Destination:", 
-                options=locations.keys(),
-                placeholder="Start typing to search...",
-                index=None,
-                key="key_end",
-                on_change=update_marker_dest
-            )
+        start_selection = st.selectbox(
+            "Choose Start:", 
+            options=locations.keys(),
+            placeholder="Start typing to search...",
+            index=None,
+            key="key_start",
+            on_change=update_marker_start
+        )
+        end_selection = st.selectbox(
+            "Choose Destination:", 
+            options=locations.keys(),
+            placeholder="Start typing to search...",
+            index=None,
+            key="key_end",
+            on_change=update_marker_dest
+        )
 
     # map picking routing UI
     else:
@@ -198,32 +207,28 @@ def display_routing_ui(locations):
 def display_additional_options_ui():
     with st.expander("Show Routing Preferences", expanded=False):
         st.write("Avoid: ")
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2 = st.columns(2)
         with col1:
             st.checkbox("Gravel", key="gravel")
             st.checkbox("Asphalt", key="asphalt")
-        with col2:
             st.checkbox("Dirt", key="dirt")
-            st.checkbox("Unpaved", key="unpaved")
-        with col3:
-            st.checkbox("Indoors", key="avoid_indoors")
             st.checkbox("Heavy Slopes", key="heavy_slope")
-        with col4:
+        with col2:
+            st.checkbox("Unpaved", key="unpaved")
+            st.checkbox("Indoors", key="avoid_indoors")
             st.checkbox("Parking", key="parking")
 
         st.write("Prioritize: ")
-        col5, col6, col7, col8 = st.columns(4)
-        with col5:
+        col3, col4 = st.columns(2)
+        with col3:
             st.checkbox("Easy Paths", key="easy_path")
             st.checkbox("Indoors", key="prio_indoors")
-        with col6:
-            st.checkbox("Paved", key="paved")
-            st.checkbox("Ground", key="ground")
-        with col7:        
-            st.checkbox("Concrete", key="concrete")
-            st.checkbox("Sidewalks", key="sidewalk")
-        with col8:
             st.checkbox("Crosswalks", key="crosswalk")
+            st.checkbox("Paved", key="paved")
+        with col4:
+            st.checkbox("Ground", key="ground")
+            st.checkbox("Sidewalks", key="sidewalk")
+            st.checkbox("Concrete", key="concrete")
 
         if st.button("Apply Advanced Settings"):
             p = s.preferences
@@ -269,7 +274,7 @@ def display_start_end_markers(m, gdf_wgs84):
             tooltip="End",
         ).add_to(m)    
 
-def calculate_best_path(G, gdf):
+def calculate_best_path(G, gdf):    
     # render path if a start and end have been selected and theyre not the same
     if s.start_coord and s.dest_coord and s.start_coord != s.dest_coord: 
         # get start and dest
@@ -341,21 +346,18 @@ def display_searchable_markers(m, gdf_wgs84, locations):
 
 def build_graph():
     df = pd.read_csv(c.PATHS)
-    points = pd.read_csv(c.POINTS)
-
     G = nx.Graph()
-    all_points = points
 
     for index, row in df.iterrows():
-        #all_points.append((row.start_x, row.start_y, row.start_z))
-
         start = (row.start_x, row.start_y, row.start_z)
         end = (row.end_x, row.end_y, row.end_z)
         
         G.add_edge(start, end, name=row.edge_name, floor=row.floor, avg_slope=row.slope_avg, slope_max=row.slope_max, surface=row.surface, length=row.length)
-    return G, all_points
+    return G
 
-def create_gdfs(all_points):
+def create_gdfs():
+    all_points = pd.read_csv(c.POINTS)
+
     # create list of points from all points and turn it into a gdf
     gdf = gpd.GeoDataFrame(
         all_points[["name", "floor"]],
@@ -369,38 +371,43 @@ def create_gdfs(all_points):
 
 @st.cache_data
 def get_processed_data():
-    G, all_points = build_graph()
-    gdf, gdf_wgs84 = create_gdfs(all_points)
+    G = build_graph()
+    gdf, gdf_wgs84 = create_gdfs()
     return G, gdf, gdf_wgs84
 
 def main():
+    set_content_size(75)
     initialize_state()
 
     # intitalize data and populate graph
     G, gdf, gdf_wgs84 = get_processed_data()
     
-    # render map
-    st.title("UTM Route Mapper")
-
     m = folium.Map(location=c.MAP_CENTER, zoom_start=c.ZOOM_START)
 
     if s.recalculate:
         s.recalculate = False
         st.toast("Settings applied!")
 
-    display_routing_ui(c.LOCATIONS)
-    display_additional_options_ui()
+    col1, col2 = st.columns([0.35, 0.65])
+
+    with col1:
+        st.title("UTM Route Mapper")
+        display_routing_ui(c.LOCATIONS)
+        display_additional_options_ui()
+
     display_searchable_markers(m, gdf_wgs84, c.LOCATIONS)
     display_start_end_markers(m, gdf_wgs84)
     path = calculate_best_path(G, gdf)
     if path:
         display_path(G, path, m)
-
     # add ability to toggle layers
     folium.LayerControl().add_to(m)
 
+
+    with col2:
     # display map
-    map_data = st_folium(m, width=c.WIDTH, height=c.HEIGHT)
+        map_data = st_folium(m, width=c.WIDTH)
+
 
     # handle adding start/dest
     handle_click(map_data, gdf)
