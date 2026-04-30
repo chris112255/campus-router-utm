@@ -63,7 +63,9 @@ LOCATIONS = {
     "Student Centre": {"index": 7276, "importance": "low"},
     "Lealock Lane": {"index": 5309, "importance": "low"},
     "Kaneff Centre": {"index": 6625, "importance": "high"},
-    "Recreation, Athletics, and Wellness Centre": {"index": 7179, "importance": "low"}
+    "Recreation, Athletics, and Wellness Centre": {"index": 7179, "importance": "low"},
+    "Science Building": {"index": 6523, "importance": "high"},
+    "Library Floor 2": {"index": 7717, "importance": "low"}
 }
 
 # map settings

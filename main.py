@@ -7,8 +7,8 @@ from streamlit_folium import st_folium
 import folium
 import constants as c
 
-# TODO: Add multifloors for IB
-# TODO: ADD ACTUAL SCIENCE BUILDING
+# TODO: Fix indoor edges marked as sidewalk
+# TODO: FIX NONE ON DEST/START
 
 s = st.session_state
 
@@ -28,7 +28,8 @@ def get_map_data(G, path_nodes):
             'surface': edge_data.get('surface'),
             "name": edge_data.get("name"),
             "slope": edge_data.get("avg_slope"),
-            "colour": c.SURFACE_COLOURS.get(edge_data.get('surface'), "#000000")
+            "colour": c.SURFACE_COLOURS.get(edge_data.get('surface'), "#000000"),
+            "floor": edge_data.get("floor")
         })
     
     gdf = gpd.GeoDataFrame(segments, crs=f"EPSG:{c.UTM17}")
@@ -302,14 +303,22 @@ def calculate_best_path(G, gdf):
 
 def display_path(G, path, m):
     path_gdf = get_map_data(G, path)
-    path_gdf.explore(
-        m=m,
-        tooltip=["name", "surface", "slope"],
-        highlight=True,
-        color=path_gdf["colour"],
-        name="Best Path",
-        style_kwds={'weight': c.PATH_WEIGHT}
-    )
+
+    unique_floors = path_gdf['floor'].unique()
+    unique_floors.sort()
+
+    for floor in unique_floors:
+        fg = folium.FeatureGroup(name=f"Floor {floor}", show=True)
+        
+        floor_mask = path_gdf[path_gdf['floor'] == floor]
+        floor_mask.explore(
+            m=fg,
+            tooltip=["name", "surface", "slope"],
+            highlight=True,
+            color=floor_mask["colour"], 
+            style_kwds={'weight': c.PATH_WEIGHT}
+        )
+        fg.add_to(m)
 
 def display_searchable_markers(m, gdf_wgs84, locations):
     # add markers for searchable areas
@@ -343,13 +352,13 @@ def build_graph():
         start = (row.start_x, row.start_y, row.start_z)
         end = (row.end_x, row.end_y, row.end_z)
         
-        G.add_edge(start, end, name=row.edge_name, avg_slope=row.slope_avg, slope_max=row.slope_max, surface=row.surface, length=row.length)
+        G.add_edge(start, end, name=row.edge_name, floor=row.floor, avg_slope=row.slope_avg, slope_max=row.slope_max, surface=row.surface, length=row.length)
     return G, all_points
 
 def create_gdfs(all_points):
     # create list of points from all points and turn it into a gdf
     gdf = gpd.GeoDataFrame(
-        all_points[["name"]], 
+        all_points[["name", "floor"]],
         geometry=gpd.points_from_xy(all_points["x"], all_points["y"], all_points["z"]), 
         crs=f"EPSG:{c.UTM17}"
     )
