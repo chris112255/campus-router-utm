@@ -3,3 +3,4 @@ networkx==3.6.1
 pip==26.1
 streamlit-folium==0.27.1
 matplotlib
+mapclassify
