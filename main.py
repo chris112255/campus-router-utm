@@ -174,7 +174,7 @@ def display_routing_ui(locations: Dict[str, Dict[str, Any]]) -> None:
 
         start_selection = st.selectbox(
             "Choose Start:", 
-            options=locations.keys(),
+            options=sorted(locations.keys()),
             placeholder="Start typing to search...",
             index=None,
             key="key_start",
@@ -182,7 +182,7 @@ def display_routing_ui(locations: Dict[str, Dict[str, Any]]) -> None:
         )
         end_selection = st.selectbox(
             "Choose Destination:", 
-            options=locations.keys(),
+            options=sorted(locations.keys()),
             placeholder="Start typing to search...",
             index=None,
             key="key_end",
