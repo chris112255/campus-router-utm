@@ -332,22 +332,25 @@ def display_path(G: nx.Graph, path: List[Any], m: folium.Map) -> None:
 
 def display_searchable_markers(m: folium.Map, gdf_wgs84: gpd.GeoDataFrame, locations: Dict[str, Dict[str, Any]]) -> None:
     # add markers for searchable areas
-    feature_group = folium.FeatureGroup(name="Notable Areas")
+    notable_points = folium.FeatureGroup(name="Notable Areas")
+    main_points = folium.FeatureGroup(name="Main Buildings")
 
     for v in locations.values():
         value = v.get("index")
         color = "blue"
-
-        if v.get("importance") == "high":
-            color = "orange"
         row = gdf_wgs84.loc[value]
 
         point = row.geometry
         name = row["name"]
 
-        folium.Marker([point.y, point.x], popup=name, icon=folium.Icon(color=color, icon="info-sign")).add_to(feature_group)
+        if v.get("importance") == "high":
+            color = "orange"
+            folium.Marker([point.y, point.x], popup=name, icon=folium.Icon(color=color, icon="info-sign")).add_to(main_points)
+        else:
+            folium.Marker([point.y, point.x], popup=name, icon=folium.Icon(color=color, icon="info-sign")).add_to(notable_points)
 
-    feature_group.add_to(m)
+    notable_points.add_to(m)
+    main_points.add_to(m)
 
 def build_graph() -> None:
     df = pd.read_csv(c.PATHS)
