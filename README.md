@@ -1,5 +1,7 @@
 # campus-router-utm
 
+<img width="80%" alt="Screenshot 2026-05-04 192555" src="https://github.com/user-attachments/assets/5b4eb5c5-f38a-45db-b01c-ae98fc664489" />
+
 An accessibility-focused routing engine for the University of Toronto Mississauga (UTM) campus. This tool enables users to generate paths that prioritize or avoid specific terrain types and slopes, ensuring a more navigable campus experience for everyone.
 
 # Key Features
